@@ -1,7 +1,7 @@
 ---
 vector_version: "0.27.0"
 
-vector_config: 
+vector_config:
   data_dir: /opt/vector/data
   sources:
     logs:

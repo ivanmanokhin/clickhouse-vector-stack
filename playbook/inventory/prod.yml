@@ -2,10 +2,10 @@
 clickhouse:
   hosts:
     clickhouse:
-      ansible_host: 
-      ansible_user: 
+      ansible_host:
+      ansible_user:
 vector:
   hosts:
     vector:
-      ansible_host: 
-      ansible_user: 
+      ansible_host:
+      ansible_user:
