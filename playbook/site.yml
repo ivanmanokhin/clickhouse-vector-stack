@@ -1,78 +1,80 @@
 ---
-- name: Install Clickhouse
+- name: Install ClickHouse
   hosts: clickhouse
   force_handlers: true
   handlers:
-    - name: Start clickhouse service
+    - name: Start ClickHouse service
       become: true
       ansible.builtin.service:
         name: clickhouse-server
         state: restarted
+        enabled: true
   tasks:
-    - name: Block :)
+    - name: ClickHouse block
       block:
-        - name: Get clickhouse distrib
+        - name: Get ClickHouse distrib
           ansible.builtin.get_url:
             url: "https://packages.clickhouse.com/rpm/stable/{{ item }}-{{ clickhouse_version }}.noarch.rpm"
             dest: "./{{ item }}-{{ clickhouse_version }}.rpm"
-            mode: 0644
+            mode: "0644"
           with_items: "{{ clickhouse_packages }}"
       rescue:
-        - name: Get clickhouse distrib
+        - name: Get ClickHouse distrib
           ansible.builtin.get_url:
             url: "https://packages.clickhouse.com/rpm/stable/{{ item }}-{{ clickhouse_version }}.x86_64.rpm"
             dest: "./{{ item }}-{{ clickhouse_version }}.rpm"
-            mode: 0644
+            mode: "0644"
           with_items: "{{ clickhouse_packages }}"
-    - name: Install clickhouse packages
+    - name: Install ClickHouse packages
       become: true
       ansible.builtin.yum:
         name:
           - clickhouse-common-static-{{ clickhouse_version }}.rpm
           - clickhouse-client-{{ clickhouse_version }}.rpm
           - clickhouse-server-{{ clickhouse_version }}.rpm
-    - name: Generate clickhouse config
+    - name: Generate ClickHouse config
       become: true
       ansible.builtin.template:
         src: config.xml.j2
         dest: /etc/clickhouse-server/config.xml
-        mode: 0644
-    - name: Generate clickhouse users config
+        mode: "0644"
+    - name: Generate ClickHouse users config
       become: true
       ansible.builtin.template:
         src: users.xml.j2
         dest: /etc/clickhouse-server/users.xml
-        mode: 0644
-      notify: Start clickhouse service
+        mode: "0644"
+      notify: Start ClickHouse service
   tags:
     - clickhouse
 
-- name: Create DB & User For Vector
+- name: Create db & user in ClickHouse (for Vector)
   hosts: clickhouse
   tasks:
-    - name: Create database
+    - name: Create database "logs"
       ansible.builtin.command: "clickhouse-client -q 'create database logs;'"
       register: create_db
       failed_when: create_db.rc != 0 and create_db.rc != 82
       changed_when: create_db.rc == 0
-    - name: Create user for vector
+    - name: Create user "vector"
       ansible.builtin.command: clickhouse-client -q "create user vector identified by '{{ vector_clickhouse_password }}';"
       register: create_user
       failed_when: create_user.rc != 0 and create_user.rc != 237
       changed_when: create_user.rc == 0
   tags:
+    - clickhouse
     - clickhouse-db
 
 - name: Install Vector
   hosts: vector
   handlers:
-    - name: Start vector service
+    - name: Start Vector service
       become: true
       ansible.builtin.service:
         name: vector
         state: restarted
   tasks:
-    - name: Block :)
+    - name: Vector block
       block:
         - name: Create user for vector
           ansible.builtin.user:
@@ -80,26 +82,26 @@
             shell: /sbin/nologin
             state: present
             create_home: true
-        - name: Get vector distrib
+        - name: Get Vector distrib
           ansible.builtin.get_url:
             url: "https://packages.timber.io/vector/{{ vector_version }}/vector-{{ vector_version }}-x86_64-unknown-linux-musl.tar.gz"
             dest: "/home/vector/vector-{{ vector_version }}.tar.gz"
-            mode: 0644
-        - name: Create directory for vector
+            mode: "0644"
+        - name: Create directory for Vector
           ansible.builtin.file:
             path: /opt/vector
             state: directory
             owner: vector
             group: vector
-            mode: 0755
-        - name: Create directory for vector data
+            mode: "0755"
+        - name: Create directory for Vector data
           ansible.builtin.file:
             path: /opt/vector/data
             state: directory
             owner: vector
             group: vector
-            mode: 0755
-        - name: Extract vector
+            mode: "0755"
+        - name: Extract Vector
           ansible.builtin.unarchive:
             src: "/home/vector/vector-{{ vector_version }}.tar.gz"
             dest: /opt/vector
@@ -107,19 +109,65 @@
             group: vector
             extra_opts: [--strip-components=2]
             remote_src: true
-        - name: Generate systemd unit for vector
+        - name: Generate systemd unit (Vector)
           ansible.builtin.template:
             src: vector.service.j2
             dest: /etc/systemd/system/vector.service
-            mode: 0644
-        - name: Rendering vector config
+            mode: "0644"
+        - name: Generate Vector config
           ansible.builtin.template:
             src: vector.yml.j2
             dest: "/opt/vector/config/vector.yml"
             owner: vector
             group: vector
-            mode: '0664'
-          notify: Start vector service
+            mode: "0664"
+          notify: Start Vector service
   become: true
   tags:
     - vector
+
+- name: Install LightHouse
+  hosts: lighthouse
+  pre_tasks:
+    - name: Install EPEL-release
+      become: true
+      ansible.builtin.yum:
+        name: epel-release
+    - name: Install Git
+      become: true
+      ansible.builtin.yum:
+        name: git
+    - name: Install Nginx
+      become: true
+      ansible.builtin.yum:
+        name: nginx
+  handlers:
+    - name: Start Nginx server
+      become: true
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+        enabled: true
+  tasks:
+    - name: LightHouse Block
+      block:
+        - name: Git clone LightHouse
+          ansible.builtin.git:
+            repo: https://github.com/VKCOM/lighthouse
+            dest: "{{ lighthouse_dir }}"
+            single_branch: true
+            version: "{{ lighthouse_branch }}"
+        - name: Set SELinux Type
+          community.general.sefcontext:
+            target: "{{ lighthouse_dir }}"
+            state: present
+            setype: httpd_sys_content_t
+        - name: Generate Nginx (Lighthouse) Config
+          ansible.builtin.template:
+            src: lighthouse.j2
+            dest: /etc/nginx/conf.d/lighthouse.conf
+            mode: "0644"
+          notify: Start Nginx server
+  become: true
+  tags:
+    - lighthouse
