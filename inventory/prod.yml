@@ -1,0 +1,16 @@
+---
+clickhouse:
+  hosts:
+    clickhouse:
+      ansible_host: <address>
+      ansible_user: centos
+vector:
+  hosts:
+    vector:
+      ansible_host: <address>
+      ansible_user: centos
+lighthouse:
+  hosts:
+    lighthouse:
+      ansible_host: <address>
+      ansible_user: centos

@@ -1,0 +1,34 @@
+---
+- name: Install ClickHouse
+  hosts: clickhouse
+  roles:
+    - { role: clickhouse }
+  tags:
+    - clickhouse
+
+- name: Install Vector
+  hosts: vector
+  roles:
+    - { role: vector }
+  tags:
+    - vector
+
+- name: Install LightHouse
+  hosts: lighthouse
+  pre_tasks:
+    - name: Install EPEL-release
+      become: true
+      ansible.builtin.yum:
+        name: epel-release
+    - name: Install Git
+      become: true
+      ansible.builtin.yum:
+        name: git
+    - name: Install Nginx
+      become: true
+      ansible.builtin.yum:
+        name: nginx
+  roles:
+    - { role: lighthouse }
+  tags:
+    - lighthouse
